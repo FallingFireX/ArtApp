@@ -1,35 +1,45 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { PanResponder, Animated } from 'react-native';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+} from 'react-native-safe-area-context';
+import { PanResponder } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+// If you’re using keep-awake elsewhere, update to the async API:
+// import { activateKeepAwakeAsync, deactivateKeepAwakeAsync } from 'expo-keep-awake';
 
-function DrawingApp() {
+export default function DrawingApp() {
+  // state
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState('');
-  const [brushColor, setBrushColor] = useState('#000000'); // Default black - Brush color
-  const [brushSize, setBrushSize] = useState(5);           // Default 5px - Brush size
-  const [isEraser, setIsEraser] = useState(false);         // Default false - Eraser toggle
+  const [brushColor, setBrushColor] = useState('#000000');
+  const [brushSize, setBrushSize] = useState(5);
+  const [isEraser, setIsEraser] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Create a pan responder to handle touch events
-const panResponder = useRef(
-  PanResponder.create({
+  // If you need keep-awake, useEffect would look like this:
+  // useEffect(() => {
+  //   activateKeepAwakeAsync();
+  //   return () => { deactivateKeepAwakeAsync(); };
+  // }, []);
+
+  // panResponder recreated on every render
+  const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: (event) => {
-      const { locationX, locationY } = event.nativeEvent;
-      // Set currentPath only if it's not already initialized
-      if (!currentPath) {  // This ensures we only start a new line if currentPath is empty
-        setCurrentPath(`M ${locationX} ${locationY}`);
-      }
+
+    onPanResponderGrant: ({ nativeEvent: { locationX, locationY } }) => {
+      setCurrentPath(`M ${locationX} ${locationY}`);
     },
-    onPanResponderMove: (event) => {
-      const { locationX, locationY } = event.nativeEvent;
-      setCurrentPath(prevPath => `${prevPath} L ${locationX} ${locationY}`);
+    onPanResponderMove: ({ nativeEvent: { locationX, locationY } }) => {
+      setCurrentPath(prev => `${prev} L ${locationX} ${locationY}`);
     },
     onPanResponderRelease: () => {
-      if (currentPath.trim() !== '') {  // Only save non-empty paths
-        setPaths(prevPaths => [
-          ...prevPaths,
+      if (currentPath.trim()) {
+        setPaths(prev => [
+          ...prev,
           {
             path: currentPath,
             color: isEraser ? '#FFFFFF' : brushColor,
@@ -37,147 +47,161 @@ const panResponder = useRef(
           },
         ]);
       }
+      setCurrentPath('');
     },
-  })
-).current;
+  });
 
-
-  // Toggle eraser function
-  const toggleEraser = () => {
-    setIsEraser(prev => !prev);
-  };
-
-  // Color selection buttons
-  const colorOptions = ['#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF'];
-
-  const handleColorChange = (color) => {
-    setBrushColor(color);
-    setIsEraser(false); // Turn off eraser if color is changed
-  };
-
-  // Brush size buttons
+  // controls
+  const colorOptions = [
+    '#000000',
+    '#FF0000',
+    '#00FF00',
+    '#0000FF',
+    '#FFFF00',
+    '#FF00FF',
+  ];
   const sizeOptions = [2, 5, 10, 15, 20];
 
-  const handleBrushSizeChange = (size) => {
-    setBrushSize(size);
-  };
-
-  // Clear canvas function
-  const clearCanvas = () => {
-    setPaths([]);
-    setCurrentPath('');
-  };
-
   return (
-    <View style={styles.container}>
-      <View style={styles.toolbar}>
-        <TouchableOpacity
-          style={[styles.button, isEraser && styles.activeButton]}
-          onPress={toggleEraser}
-        >
-          <Text style={styles.buttonText}>
-            {isEraser ? 'Brush' : 'Eraser'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.button}
-          onPress={clearCanvas}
-        >
-          <Text style={styles.buttonText}>Clear</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.colorContainer}>
-        {colorOptions.map((color, index) => (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        {/* Header bar with hamburger */}
+        <View style={styles.header}>
           <TouchableOpacity
-            key={index}
-            style={[
-              styles.colorButton,
-              { backgroundColor: color },
-              brushColor === color && styles.selectedColor,
-            ]}
-            onPress={() => handleColorChange(color)}
-          />
-        ))}
-      </View>
-
-      <View style={styles.sizeContainer}>
-        {sizeOptions.map((size, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.sizeButton,
-              brushSize === size && styles.selectedSize,
-            ]}
-            onPress={() => handleBrushSizeChange(size)}
+            onPress={() => setMenuOpen(open => !open)}
+            style={styles.menuButton}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <View style={[styles.sizeIndicator, { width: size, height: size }]} />
+            <Ionicons name="menu" size={32} color="#3498db" />
           </TouchableOpacity>
-        ))}
-      </View>
+          <Text style={styles.headerTitle}>smArt</Text>
+        </View>
 
-      <View
-        style={styles.canvas}
-        {...panResponder.panHandlers}
-      >
-        <Svg height="100%" width="100%">
-          {/* Render saved paths */}
-          {paths.map((item, index) => (
-            <Path
-              key={index}
-              d={item.path}
-              stroke={item.color}
-              strokeWidth={item.strokeWidth}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
-          {/* Render current path */}
-          {currentPath ? (
-            <Path
-              d={currentPath}
-              stroke={isEraser ? '#FFFFFF' : brushColor}
-              strokeWidth={brushSize}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ) : null}
-        </Svg>
-      </View>
-    </View>
+        {/* Slide-down menu */}
+        {menuOpen && (
+          <View style={styles.menuContainer}>
+            {/* Eraser / Clear toolbar */}
+            <View style={styles.toolbar}>
+              <TouchableOpacity
+                style={[styles.button, isEraser && styles.activeButton]}
+                onPress={() => setIsEraser(e => !e)}
+              >
+                <Text style={styles.buttonText}>
+                  {isEraser ? 'Brush' : 'Eraser'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => {
+                  setPaths([]);
+                  setCurrentPath('');
+                }}
+              >
+                <Text style={styles.buttonText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Color picker */}
+            <View style={styles.colorContainer}>
+              {colorOptions.map((c, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[
+                    styles.colorButton,
+                    { backgroundColor: c },
+                    brushColor === c && !isEraser && styles.selectedColor,
+                  ]}
+                  onPress={() => {
+                    setBrushColor(c);
+                    setIsEraser(false);
+                  }}
+                />
+              ))}
+            </View>
+
+            {/* Size picker */}
+            <View style={styles.sizeContainer}>
+              {sizeOptions.map((s, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[
+                    styles.sizeButton,
+                    brushSize === s && styles.selectedSize,
+                  ]}
+                  onPress={() => setBrushSize(s)}
+                >
+                  <View
+                    style={[styles.sizeIndicator, { width: s, height: s }]}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Drawing canvas */}
+        <View style={styles.canvas} {...panResponder.panHandlers}>
+          <Svg height="100%" width="100%">
+            {paths.map((item, idx) => (
+              <Path
+                key={idx}
+                d={item.path}
+                stroke={item.color}
+                strokeWidth={item.strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+            {currentPath ? (
+              <Path
+                d={currentPath}
+                stroke={isEraser ? '#FFFFFF' : brushColor}
+                strokeWidth={brushSize}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+          </Svg>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 10,
-    backgroundColor: '#f5f5f5',
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
   },
+  menuButton: { padding: 5 },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  menuContainer: { backgroundColor: '#fff', paddingBottom: 10 },
   toolbar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginHorizontal: 10,
+    marginTop: 5,
     marginBottom: 10,
   },
-  button: {
-    backgroundColor: '#3498db',
-    padding: 10,
-    borderRadius: 5,
-    marginRight: 5,
-  },
-  activeButton: {
-    backgroundColor: '#e74c3c',
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
+  button: { backgroundColor: '#3498db', padding: 8, borderRadius: 5 },
+  activeButton: { backgroundColor: '#e74c3c' },
+  buttonText: { color: 'white', fontWeight: 'bold' },
   colorContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    marginHorizontal: 20,
     marginBottom: 10,
   },
   colorButton: {
@@ -187,13 +211,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  selectedColor: {
-    borderWidth: 3,
-    borderColor: '#333',
-  },
+  selectedColor: { borderWidth: 3, borderColor: '#333' },
   sizeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    marginHorizontal: 20,
     marginBottom: 10,
   },
   sizeButton: {
@@ -206,22 +228,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  selectedSize: {
-    borderWidth: 2,
-    borderColor: '#3498db',
-  },
-  sizeIndicator: {
-    backgroundColor: '#000',
-    borderRadius: 10,
-  },
+  selectedSize: { borderWidth: 2, borderColor: '#3498db' },
+  sizeIndicator: { backgroundColor: '#000', borderRadius: 10 },
   canvas: {
     flex: 1,
     backgroundColor: 'white',
-    borderWidth: 1,
     borderColor: '#ddd',
+    borderWidth: 1,
     borderRadius: 5,
     overflow: 'hidden',
+    margin: 10,
   },
 });
-
-export default DrawingApp;
